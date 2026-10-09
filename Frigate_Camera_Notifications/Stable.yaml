@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.14.0.2aa)
+  name: Frigate Notifications (0.14.0.2ab)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -613,6 +613,16 @@ blueprint:
               max: 3600
               min: 0
               unit_of_measurement: minutes
+        silence_timer_entity:
+          name: Silence Timer Helper (Optional)
+          description: |
+            A timer helper used to pause notifications. Using a timer instead of the built-in delay means the pause survives a Home Assistant restart, lets the notification count down the time remaining, and clears itself when the pause ends. 
+            Leave empty to use the legacy delay behaviour (no pause notification).
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: timer
         loiter_timer:
           name: Loitering Notifications (Optional)
           description: >
@@ -939,6 +949,9 @@ triggers:
     event_data:
       action: "custom-{{ this.entity_id}}"
     id: custom
+  - trigger: event
+    event_type: timer.finished
+    id: silence-finished
 variables:
   input_camera: !input camera
   input_camera_name: "{{input_camera|expand|map(attribute='attributes.camera_name', default='none')|list}}"
@@ -972,6 +985,9 @@ variables:
   presence_entity: !input presence_filter
   disable_times: !input disable_times
   cooldown: !input cooldown
+  silence_minutes: !input silence_timer
+  silence_entity: !input silence_timer_entity
+  silenced: "{{ silence_entity != '' and is_state(silence_entity, 'active') }}"
   timeout: !input timeout
   loitering: false
   loiter_timer: !input loiter_timer
@@ -1014,12 +1030,17 @@ conditions:
       id: silence
     - condition: trigger
       id: custom
+    - condition: trigger
+      id: silence-finished
     - condition: and
       conditions:
         - condition: trigger
           id:
             - frigate-event
             - genai-event
+        - alias: Not Silenced
+          condition: template
+          value_template: "{{ not silenced }}"
         - alias: Camera Match
           condition: template
           value_template: "{{ input_camera_name|select('equalto', camera)|list|length>0 }}"
@@ -1041,16 +1062,97 @@ actions:
           - condition: trigger
             id: silence
         sequence:
-          - action: automation.turn_off
-            target:
-              entity_id: "{{ this.entity_id }}"
-            data:
-              stop_actions: false
-          - delay:
-              minutes: !input silence_timer
-          - action: automation.turn_on
-            target:
-              entity_id: "{{ this.entity_id }}"
+          - choose:
+              - alias: Timer-based pause (survives restarts)
+                conditions:
+                  - condition: template
+                    value_template: "{{ silence_entity != '' }}"
+                sequence:
+                  - action: timer.start
+                    target:
+                      entity_id: "{{ silence_entity }}"
+                    data:
+                      duration: "{{ silence_minutes | int(30) * 60 }}"
+                  - repeat:
+                      while:
+                        - condition: template
+                          value_template: "{{ is_state(silence_entity, 'active') }}"
+                      sequence:
+                        - variables:
+                            silence_tag: "{{ this.entity_id }}-silenced"
+                            silence_left: "{{ ((as_datetime(state_attr(silence_entity, 'finishes_at')) - now()).total_seconds() / 60) | round(0, 'ceil') | int }}"
+                            silence_until: "{{ (as_datetime(state_attr(silence_entity, 'finishes_at')) | as_local).strftime('%-I:%M %p') }}"
+                            silence_message: "For {{ silence_left }} more minute{{ 's' if silence_left | int != 1 }} - resuming at {{ silence_until }}."
+                        - if:
+                            - condition: template
+                              value_template: "{{ silence_left | int > 0 }}"
+                          then:
+                            - if:
+                                - condition: template
+                                  value_template: "{{ not notify_group_target }}"
+                              then:
+                                - device_id: !input notify_device
+                                  domain: mobile_app
+                                  type: notify
+                                  title: Camera notifications paused
+                                  message: "{{ silence_message }}"
+                                  data:
+                                    tag: "{{ silence_tag }}"
+                                    channel: !input channel
+                                    sticky: true
+                                    importance: low
+                                    notification_icon: mdi:bell-off
+                              else:
+                                - action: notify.{{ notify_group_target }}
+                                  data:
+                                    title: Camera notifications paused
+                                    message: "{{ silence_message }}"
+                                    data:
+                                      tag: "{{ silence_tag }}"
+                                      channel: !input channel
+                                      sticky: true
+                                      importance: low
+                                      notification_icon: mdi:bell-off
+                        - delay:
+                            minutes: 5
+              - alias: Legacy delay-based pause
+                conditions:
+                  - condition: template
+                    value_template: "{{ silence_entity == '' }}"
+                sequence:
+                  - action: automation.turn_off
+                    target:
+                      entity_id: "{{ this.entity_id }}"
+                    data:
+                      stop_actions: false
+                  - delay:
+                      minutes: !input silence_timer
+                  - action: automation.turn_on
+                    target:
+                      entity_id: "{{ this.entity_id }}"
+      - alias: "Silence Finished"
+        conditions:
+          - condition: trigger
+            id: silence-finished
+          - condition: template
+            value_template: "{{ silence_entity != '' and trigger.event.data.entity_id == silence_entity }}"
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ not notify_group_target }}"
+            then:
+              - device_id: !input notify_device
+                domain: mobile_app
+                type: notify
+                message: clear_notification
+                data:
+                  tag: "{{ this.entity_id }}-silenced"
+            else:
+              - action: notify.{{ notify_group_target }}
+                data:
+                  message: clear_notification
+                  data:
+                    tag: "{{ this.entity_id }}-silenced"
       - alias: "Custom Action Manual"
         conditions:
           - condition: trigger
@@ -1086,7 +1188,7 @@ actions:
               message: "{{ genai_shortSummary }}"
               subtitle: !input subtitle
               group: !input group
-              tag: "{{ id }}"
+              tag: "{{ review_id }}"
               channel: !input channel
               sticky: false
               sound: "none"
@@ -1489,7 +1591,7 @@ actions:
                                 title: "{{title}}"
                                 message: "{{message}}"
                                 data:
-                                  tag: "{{ id }}"
+                                  tag: "{{ review_id }}"
                                   group: "{{ group }}"
                                   color: "{{color}}"
                                   # Android Specific
@@ -1537,7 +1639,7 @@ actions:
                                   title: "{{title}}"
                                   message: "{{message}}"
                                   data:
-                                    tag: "{{ id }}"
+                                    tag: "{{ review_id }}"
                                     group: "{{ group }}"
                                     color: "{{color}}"
                                     # Android Specific
@@ -1592,7 +1694,7 @@ actions:
                               title: "{{title}}"
                               message: "{{message}}"
                               data:
-                                tag: "{{ id }}"
+                                tag: "{{ review_id }}"
                                 group: "{{ group }}"
                                 color: "{{color}}"
                                 # Android Specific
@@ -1650,7 +1752,7 @@ actions:
                                       type: notify
                                       message: "{{'TTS'}}"
                                       data:
-                                        tag: "{{ id }}{{'-tts'}}"
+                                        tag: "{{ review_id }}{{'-tts'}}"
                                         channel: "{{'alarm_stream' if critical else channel}}"
                                         alert_once: "{{ alert_once }}"
                                         tts_text: "{{message}}"
@@ -1659,7 +1761,7 @@ actions:
                                   data:
                                     message: "{{'TTS'}}"
                                     data:
-                                      tag: "{{ id }}{{'-tts'}}"
+                                      tag: "{{ review_id }}{{'-tts'}}"
                                       channel: "{{'alarm_stream' if critical else channel}}"
                                       alert_once: "{{ alert_once }}"
                                       tts_text: "{{message}}"
@@ -1958,7 +2060,7 @@ actions:
                                       title: "{{title}}"
                                       message: "{{message}}"
                                       data:
-                                        tag: "{{ id }}"
+                                        tag: "{{ review_id }}"
                                         group: "{{ group }}"
                                         color: "{{color}}"
                                         # Android Specific
@@ -2007,7 +2109,7 @@ actions:
                                         title: "{{title}}"
                                         message: "{{message}}"
                                         data:
-                                          tag: "{{ id }}"
+                                          tag: "{{ review_id }}"
                                           group: "{{ group }}"
                                           color: "{{color}}"
                                           # Android Specific
@@ -2063,7 +2165,7 @@ actions:
                                     title: "{{title}}"
                                     message: "{{message}}"
                                     data:
-                                      tag: "{{ id }}"
+                                      tag: "{{ review_id }}"
                                       group: "{{ group }}"
                                       color: "{{color}}"
                                       # Android Specific
@@ -2123,7 +2225,7 @@ actions:
                                             type: notify
                                             message: "{{'TTS'}}"
                                             data:
-                                              tag: "{{ id }}{{'-loitering-tts' if loitering}}"
+                                              tag: "{{ review_id }}{{'-loitering-tts' if loitering}}"
                                               channel: "{{'alarm_stream' if critical else channel}}"
                                               alert_once: "{{ alert_once }}"
                                               tts_text: "{{message}}"
@@ -2133,7 +2235,7 @@ actions:
                                         data:
                                           message: "{{'TTS'}}"
                                           data:
-                                            tag: "{{ id }}{{'-loitering-tts' if loitering}}"
+                                            tag: "{{ review_id }}{{'-loitering-tts' if loitering}}"
                                             channel: "{{'alarm_stream' if critical else channel}}"
                                             alert_once: "{{ alert_once }}"
                                             tts_text: "{{message}}"
