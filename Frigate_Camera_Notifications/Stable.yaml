@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.2)
+  name: Frigate Notifications (0.18.3)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -116,7 +116,7 @@ blueprint:
           name: Notification Message
           description: |
             The message of the notification.
-            You can use variables such as {{camera_name}} and {{label}}
+            You can use variables such as {{camera_name}}, {{label}} and {{audio}} (audio labels Frigate heard, e.g. speech)
             e.g., A {{ label }} {{ ' was' if type == 'end' else '' }} detected on the {{ camera_name }} camera.
 
           default: "A {{ label }} {{ 'was detected' }} on the {{ camera_name }} camera."
@@ -1272,7 +1272,9 @@ actions:
                 {% else %}
                   {{ genai_title }}
                 {% endif %}
-              message: "{{ genai_shortSummary }}"
+              genai_concerns: "{{ metadata.other_concerns or [] }}"
+              message: >-
+                {{ genai_shortSummary }}{{ '\nConcerns: ' ~ genai_concerns | join('; ') if genai_concerns | length }}
               subtitle: !input subtitle
               group: !input group
               tag: "{{ review_id }}"
@@ -1486,6 +1488,7 @@ actions:
               id: "{{ detections | sort | first | default('') }}"
               objects: "{{ event['after']['data']['objects'] }}"
               sub_labels: "{{ event['after']['data']['sub_labels'] }}"
+              audio: "{{ event['after']['data'].get('audio') or [] }}"
               label: >-
                 {% if update_sub_label %}
                   {% set verified = event['after']['data'].get('verified_objects') %}
@@ -1959,6 +1962,7 @@ actions:
 
                     before_sub_labels: "{{ sub_labels }}"
                     sub_labels: "{{ event['after']['data']['sub_labels'] | default([]) }}"
+                    audio: "{{ event['after']['data'].get('audio') or [] }}"
                     # assess the sub labels from the mqtt message.
                     # If the user has configured specific objects we eliminate objects not in that list
                     # Otherwise we loop through all objects and replace any verified objects with the sub label
