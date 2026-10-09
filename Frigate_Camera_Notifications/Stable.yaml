@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.14.0.2ac)
+  name: Frigate Notifications (0.14.0.2ad)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -184,6 +184,16 @@ blueprint:
           default: false
           selector:
             boolean:
+        dismissed_helper:
+          name: Skip GenAI Summary For Dismissed Alerts (Optional)
+          description: |
+            When set, a GenAI summary is not sent if you already swiped away that event's notification. Create a text helper (/config/helpers) with the maximum length set to 255, which stores the ids of recently dismissed notifications, and select it here. Leave empty to always send the summary.
+            Android only: iOS does not report dismissed notifications.
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: input_text
         attachment:
           name: Initial Attachment
           description: |
@@ -952,6 +962,9 @@ triggers:
   - trigger: event
     event_type: timer.finished
     id: silence-finished
+  - trigger: event
+    event_type: mobile_app_notification_cleared
+    id: notification-cleared
 variables:
   input_camera: !input camera
   input_camera_name: "{{input_camera|expand|map(attribute='attributes.camera_name', default='none')|list}}"
@@ -986,6 +999,7 @@ variables:
   disable_times: !input disable_times
   cooldown: !input cooldown
   silence_minutes: !input silence_timer
+  dismissed_helper: !input dismissed_helper
   silence_entity: !input silence_timer_entity
   silenced: "{{ silence_entity != '' and is_state(silence_entity, 'active') }}"
   timeout: !input timeout
@@ -1032,6 +1046,15 @@ conditions:
       id: custom
     - condition: trigger
       id: silence-finished
+    - condition: and
+      conditions:
+        - condition: trigger
+          id: notification-cleared
+        - alias: Frigate review notification
+          condition: template
+          value_template: >
+            {{ dismissed_helper != '' and
+               trigger.event.data.get('tag', '') | regex_match('^\\d+\\.\\d+-[a-z0-9]+$') }}
     - condition: and
       conditions:
         - condition: trigger
@@ -1153,6 +1176,22 @@ actions:
                   message: clear_notification
                   data:
                     tag: "{{ this.entity_id }}-silenced"
+      - alias: "Remember Dismissed Notification"
+        conditions:
+          - condition: trigger
+            id: notification-cleared
+        sequence:
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ dismissed_helper }}"
+            data:
+              value: >
+                {% set tag = trigger.event.data.tag %}
+                {% set old = states(dismissed_helper) %}
+                {% set old = '' if old in ['unknown', 'unavailable'] else old %}
+                {% if tag in old %}{{ old }}{% else %}
+                {{ (tag ~ '|' ~ old)[:state_attr(dismissed_helper, 'max') | int(100)] }}
+                {% endif %}
       - alias: "Custom Action Manual"
         conditions:
           - condition: trigger
@@ -1167,6 +1206,11 @@ actions:
           - alias: "Zone Filter"
             condition: template
             value_template: "{{ not zone_only or after_zones | select('in', zones) | list | length > 0 }}"
+          - alias: "Not Dismissed"
+            condition: template
+            value_template: >
+              {{ dismissed_helper == '' or
+                 trigger.payload_json['after']['id'] not in states(dismissed_helper) }}
         sequence:
           - variables:
               event: "{{ trigger.payload_json }}"
