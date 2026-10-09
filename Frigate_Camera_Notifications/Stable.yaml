@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.14.0.2ab)
+  name: Frigate Notifications (0.14.0.2ac)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -1232,6 +1232,7 @@ actions:
                         message: "{{message}}"
                         data:
                           tag: "{{ tag }}"
+                          alert_once: true
                           group: "{{ group }}"
                           # Android Specific
                           subject: "{{subtitle}}"
@@ -1278,6 +1279,7 @@ actions:
                           message: "{{message}}"
                           data:
                             tag: "{{ tag }}"
+                            alert_once: true
                             group: "{{ group }}"
                             # Android Specific
                             subject: "{{subtitle}}"
@@ -1331,6 +1333,7 @@ actions:
                       message: "{{message}}"
                       data:
                         tag: "{{ tag }}"
+                        alert_once: true
                         group: "{{ group }}"
                         # Android Specific
                         subject: "{{subtitle}}"
