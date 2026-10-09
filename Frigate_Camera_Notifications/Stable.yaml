@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.4)
+  name: Frigate Notifications (0.18.5)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -1261,7 +1261,6 @@ actions:
                 {{ genai_shortSummary }}{{ '\nConcerns: ' ~ genai_concerns | join('; ') if genai_concerns | length }}
               subtitle: !input subtitle
               group: !input group
-              tag: "{{ review_id }}"
               channel: !input channel
               sticky: false
               # Only a "Security Concern" summary alerts; others update silently.
@@ -1288,6 +1287,10 @@ actions:
               tv_interrupt: !input tv_interrupt
               attachment: !input attachment
               video: !input video
+              notify_alert_once: "{{ not genai_alert }}"
+              notify_sound: "{{ sound }}"
+              notify_volume: "{{ iif(sound == 'none', 0, volume) }}"
+              tv_image: "{{ attachment | replace('review_preview.gif','snapshot.jpg') | replace('event_preview.gif','snapshot.jpg') }}"
           - alias: "Send GenAI Notification"
             sequence:
               - choose:
@@ -1305,58 +1308,10 @@ actions:
                         type: notify
                         title: "{{title}}"
                         message: "{{message}}"
-                        data:
-                          tag: "{{ tag }}"
-                          alert_once: "{{ not genai_alert }}"
-                          group: "{{ group }}"
-                          color: "{{color}}"
-                          notification_icon: "{{icon}}"
-                          # Android Specific
-                          subject: "{{subtitle}}"
-                          image: "{{attachment}}"
-                          video: "{{video}}"
-                          clickAction: "{{tap_action}}"
-                          ttl: 0
-                          priority: high
-                          sticky: "{{sticky}}"
-                          channel: "{{'alarm_stream' if critical else channel}}"
-                          car_ui: "{{android_auto}}"
-                          # iOS Specific
-                          subtitle: "{{subtitle}}"
-                          url: "{{tap_action}}"
-                          attachment:
-                            url: "{{video if video else attachment }}"
-                            content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                          push:
-                            sound:
-                              name: "{{sound}}"
-                              volume: "{{ iif(sound == 'none', 0, volume) }}"
-                              critical: "{{ iif(critical, 1, 0) }}"
-                          entity_id: "{{ios_live_view}}"
-                          # Actions
-                          actions:
-                            - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                              title: "{{button_1}}"
-                              uri: "{{url_1}}"
-                              icon: "{{icon_1}}"
-                            - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                              title: "{{button_2}}"
-                              uri: "{{url_2}}"
-                              icon: "{{icon_2}}"
-                            - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                              title: "{{button_3}}"
-                              uri: "{{url_3}}"
-                              icon: "{{icon_3}}"
-                              destructive: true
-                  - conditions: "{{ tv }}"
-                    sequence:
-                      - action: "notify.{{ notify_group_target }}"
-                        data:
-                          title: "{{title}}"
-                          message: "{{message}}"
-                          data:
-                            tag: "{{ tag }}"
-                            alert_once: "{{ not genai_alert }}"
+                        data: &notify_phone
+                          <<: &notify_common
+                            tag: "{{ review_id }}"
+                            alert_once: "{{ notify_alert_once }}"
                             group: "{{ group }}"
                             color: "{{color}}"
                             notification_icon: "{{icon}}"
@@ -1368,16 +1323,6 @@ actions:
                             sticky: "{{sticky}}"
                             channel: "{{'alarm_stream' if critical else channel}}"
                             car_ui: "{{android_auto}}"
-                            # Android/Fire TV
-                            image:
-                              #only send still images to TV
-                              url: "{{attachment | replace('review_preview.gif','snapshot.jpg') | replace('event_preview.gif','snapshot.jpg')}}"
-                            fontsize: "{{tv_size}}"
-                            position: "{{tv_position}}"
-                            duration: "{{tv_duration}}"
-                            transparency: "{{tv_transparency}}"
-                            interrupt: "{{tv_interrupt}}"
-                            timeout: 30
                             # iOS Specific
                             subtitle: "{{subtitle}}"
                             url: "{{tap_action}}"
@@ -1386,8 +1331,8 @@ actions:
                               content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
                             push:
                               sound:
-                                name: "{{sound}}"
-                                volume: "{{ iif(sound == 'none', 0, volume) }}"
+                                name: "{{ notify_sound }}"
+                                volume: "{{ notify_volume }}"
                                 critical: "{{ iif(critical, 1, 0) }}"
                             entity_id: "{{ios_live_view}}"
                             # Actions
@@ -1405,60 +1350,35 @@ actions:
                                 uri: "{{url_3}}"
                                 icon: "{{icon_3}}"
                                 destructive: true
+                          image: "{{attachment}}"
+                          video: "{{video}}"
+                  - conditions: "{{ tv }}"
+                    sequence:
+                      - action: "notify.{{ notify_group_target }}"
+                        data:
+                          title: "{{title}}"
+                          message: "{{message}}"
+                          data:
+                            <<:
+                              - *notify_common
+                              - &notify_tv
+                                # Android/Fire TV
+                                fontsize: "{{tv_size}}"
+                                position: "{{tv_position}}"
+                                duration: "{{tv_duration}}"
+                                transparency: "{{tv_transparency}}"
+                                interrupt: "{{tv_interrupt}}"
+                            # Only send still images to TV
+                            image:
+                              url: "{{ tv_image }}"
+                            timeout: 30
                 default:
                   - action: "notify.{{ notify_group_target }}"
                     data:
                       title: "{{title}}"
                       message: "{{message}}"
                       data:
-                        tag: "{{ tag }}"
-                        alert_once: "{{ not genai_alert }}"
-                        group: "{{ group }}"
-                        color: "{{color}}"
-                        notification_icon: "{{icon}}"
-                        # Android Specific
-                        subject: "{{subtitle}}"
-                        image: "{{attachment}}"
-                        video: "{{video}}"
-                        clickAction: "{{tap_action}}"
-                        ttl: 0
-                        priority: high
-                        sticky: "{{sticky}}"
-                        channel: "{{'alarm_stream' if critical else channel}}"
-                        car_ui: "{{android_auto}}"
-                        # Android/Fire TV
-                        subtitle: "{{subtitle}}"
-                        fontsize: "{{tv_size}}"
-                        position: "{{tv_position}}"
-                        duration: "{{tv_duration}}"
-                        transparency: "{{tv_transparency}}"
-                        interrupt: "{{tv_interrupt}}"
-                        # iOS Specific
-                        url: "{{tap_action}}"
-                        attachment:
-                          url: "{{video if video else attachment }}"
-                          content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                        push:
-                          sound:
-                            name: "{{sound}}"
-                            volume: "{{ iif(sound == 'none', 0, volume) }}"
-                            critical: "{{ iif(critical, 1, 0) }}"
-                        entity_id: "{{ios_live_view}}"
-                        # Actions
-                        actions:
-                          - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                            title: "{{button_1}}"
-                            uri: "{{url_1}}"
-                            icon: "{{icon_1}}"
-                          - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                            title: "{{button_2}}"
-                            uri: "{{url_2}}"
-                            icon: "{{icon_2}}"
-                          - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                            title: "{{button_3}}"
-                            uri: "{{url_3}}"
-                            icon: "{{icon_3}}"
-                            destructive: true
+                        <<: [*notify_phone, *notify_tv]
       - alias: "Frigate Event"
         conditions:
           - condition: trigger
@@ -1542,6 +1462,10 @@ actions:
               attachment: !input attachment
               video: !input video
               custom_action_auto: !input custom_action_auto
+              notify_alert_once: false
+              notify_sound: "{{ sound }}"
+              notify_volume: "{{ iif(sound == 'none', 0, volume) }}"
+              tv_image: "{{ attachment | replace('review_preview.gif','snapshot.jpg') | replace('event_preview.gif','snapshot.jpg') }}"
           - alias: "Debug: Initial Output"
             choose:
               - conditions:
@@ -1668,48 +1592,7 @@ actions:
                                 type: notify
                                 title: "{{title}}"
                                 message: "{{message}}"
-                                data:
-                                  tag: "{{ review_id }}"
-                                  group: "{{ group }}"
-                                  color: "{{color}}"
-                                  # Android Specific
-                                  subject: "{{subtitle}}"
-                                  image: "{{attachment}}"
-                                  video: "{{video}}"
-                                  clickAction: "{{tap_action}}"
-                                  ttl: 0
-                                  priority: high
-                                  notification_icon: "{{icon}}"
-                                  sticky: "{{sticky}}"
-                                  channel: "{{'alarm_stream' if critical else channel}}"
-                                  car_ui: "{{android_auto}}"
-                                  # iOS Specific
-                                  subtitle: "{{subtitle}}"
-                                  url: "{{tap_action}}"
-                                  attachment:
-                                    url: "{{video if video else attachment }}"
-                                    content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                                  push:
-                                    sound:
-                                      name: "{{sound}}"
-                                      volume: "{{ iif(sound == 'none', 0, volume) }}"
-                                      critical: "{{ iif(critical, 1, 0) }}"
-                                  entity_id: "{{ios_live_view}}"
-                                  # Actions
-                                  actions:
-                                    - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                                      title: "{{button_1}}"
-                                      uri: "{{url_1}}"
-                                      icon: "{{icon_1}}"
-                                    - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                                      title: "{{button_2}}"
-                                      uri: "{{url_2}}"
-                                      icon: "{{icon_2}}"
-                                    - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                                      title: "{{button_3}}"
-                                      uri: "{{url_3}}"
-                                      icon: "{{icon_3}}"
-                                      destructive: true
+                                data: *notify_phone
                           - conditions: "{{ tv }}"
                             sequence:
                               - action: "notify.{{ notify_group_target }}"
@@ -1717,108 +1600,18 @@ actions:
                                   title: "{{title}}"
                                   message: "{{message}}"
                                   data:
-                                    tag: "{{ review_id }}"
-                                    group: "{{ group }}"
-                                    color: "{{color}}"
-                                    # Android Specific
-                                    subject: "{{subtitle}}"
-                                    clickAction: "{{tap_action}}"
-                                    ttl: 0
-                                    priority: high
-                                    notification_icon: "{{icon}}"
-                                    sticky: "{{sticky}}"
-                                    channel: "{{'alarm_stream' if critical else channel}}"
-                                    car_ui: "{{android_auto}}"
-                                    # Android/Fire TV
+                                    <<: [*notify_common, *notify_tv]
+                                    # Only send still images to TV
                                     image:
-                                      #only send still images to TV
-                                      url: "{{attachment | replace('review_preview.gif','snapshot.jpg') | replace('event_preview.gif','snapshot.jpg')}}"
-                                    fontsize: "{{tv_size}}"
-                                    position: "{{tv_position}}"
-                                    duration: "{{tv_duration}}"
-                                    transparency: "{{tv_transparency}}"
-                                    interrupt: "{{tv_interrupt}}"
+                                      url: "{{ tv_image }}"
                                     timeout: 30
-                                    # iOS Specific
-                                    subtitle: "{{subtitle}}"
-                                    url: "{{tap_action}}"
-                                    attachment:
-                                      url: "{{video if video else attachment }}"
-                                      content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                                    push:
-                                      sound:
-                                        name: "{{sound}}"
-                                        volume: "{{ iif(sound == 'none', 0, volume) }}"
-                                        critical: "{{ iif(critical, 1, 0) }}"
-                                    entity_id: "{{ios_live_view}}"
-                                    # Actions
-                                    actions:
-                                      - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                                        title: "{{button_1}}"
-                                        uri: "{{url_1}}"
-                                        icon: "{{icon_1}}"
-                                      - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                                        title: "{{button_2}}"
-                                        uri: "{{url_2}}"
-                                        icon: "{{icon_2}}"
-                                      - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                                        title: "{{button_3}}"
-                                        uri: "{{url_3}}"
-                                        icon: "{{icon_3}}"
-                                        destructive: true
                         default:
                           - action: "notify.{{ notify_group_target }}"
                             data:
                               title: "{{title}}"
                               message: "{{message}}"
                               data:
-                                tag: "{{ review_id }}"
-                                group: "{{ group }}"
-                                color: "{{color}}"
-                                # Android Specific
-                                subject: "{{subtitle}}"
-                                image: "{{attachment}}"
-                                video: "{{video}}"
-                                clickAction: "{{tap_action}}"
-                                ttl: 0
-                                priority: high
-                                notification_icon: "{{icon}}"
-                                sticky: "{{sticky}}"
-                                channel: "{{'alarm_stream' if critical else channel}}"
-                                car_ui: "{{android_auto}}"
-                                # Android/Fire TV
-                                subtitle: "{{subtitle}}"
-                                fontsize: "{{tv_size}}"
-                                position: "{{tv_position}}"
-                                duration: "{{tv_duration}}"
-                                transparency: "{{tv_transparency}}"
-                                interrupt: "{{tv_interrupt}}"
-                                # iOS Specific
-                                url: "{{tap_action}}"
-                                attachment:
-                                  url: "{{video if video else attachment }}"
-                                  content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                                push:
-                                  sound:
-                                    name: "{{sound}}"
-                                    volume: "{{ iif(sound == 'none', 0, volume) }}"
-                                    critical: "{{ iif(critical, 1, 0) }}"
-                                entity_id: "{{ios_live_view}}"
-                                # Actions
-                                actions:
-                                  - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                                    title: "{{button_1}}"
-                                    uri: "{{url_1}}"
-                                    icon: "{{icon_1}}"
-                                  - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                                    title: "{{button_2}}"
-                                    uri: "{{url_2}}"
-                                    icon: "{{icon_2}}"
-                                  - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                                    title: "{{button_3}}"
-                                    uri: "{{url_3}}"
-                                    icon: "{{icon_3}}"
-                                    destructive: true
+                                <<: [*notify_phone, *notify_tv]
                       - if: "{{tts and (not tts_helper or not alert_once or (tts_helper and review_id not in states(tts_helper)))}}"
                         then:
                           sequence:
@@ -1984,6 +1777,10 @@ actions:
 
                     # update is used to determine if we should play a sound. if it returns true, we should be silent.
                     silent_update: "{{ alert_once or (not presence_changed and not zone_updated and not object_updated and not sub_label_updated) }}"
+                    notify_alert_once: "{{ alert_once }}"
+                    notify_sound: "{{ iif(silent_update, 'none', sound) }}"
+                    notify_volume: "{{ iif((silent_update or sound == 'none'), 0, volume) }}"
+                    tv_image: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
 
                     custom_action_auto_multi: !input custom_action_auto_multi
                 - alias: "Debug: Loop Output"
@@ -2162,49 +1959,7 @@ actions:
                                       type: notify
                                       title: "{{title}}"
                                       message: "{{message}}"
-                                      data:
-                                        tag: "{{ review_id }}"
-                                        group: "{{ group }}"
-                                        color: "{{color}}"
-                                        # Android Specific
-                                        subject: "{{subtitle}}"
-                                        image: "{{attachment}}"
-                                        video: "{{video}}"
-                                        clickAction: "{{tap_action}}"
-                                        ttl: 0
-                                        priority: high
-                                        alert_once: "{{ alert_once }}"
-                                        notification_icon: "{{icon}}"
-                                        sticky: "{{sticky}}"
-                                        channel: "{{'alarm_stream' if critical else channel}}"
-                                        car_ui: "{{android_auto}}"
-                                        # iOS Specific
-                                        subtitle: "{{subtitle}}"
-                                        url: "{{tap_action}}"
-                                        attachment:
-                                          url: "{{video if video else attachment }}"
-                                          content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                                        push:
-                                          sound:
-                                            name: "{{ iif(silent_update, 'none', sound) }}"
-                                            volume: "{{ iif((silent_update or sound == 'none'), 0, volume) }}"
-                                            critical: "{{ iif(critical, 1, 0) }}"
-                                        entity_id: "{{ios_live_view}}"
-                                        # Actions
-                                        actions:
-                                          - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                                            title: "{{button_1}}"
-                                            uri: "{{url_1}}"
-                                            icon: "{{icon_1}}"
-                                          - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                                            title: "{{button_2}}"
-                                            uri: "{{url_2}}"
-                                            icon: "{{icon_2}}"
-                                          - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                                            title: "{{button_3}}"
-                                            uri: "{{url_3}}"
-                                            icon: "{{icon_3}}"
-                                            destructive: true
+                                      data: *notify_phone
                                 - conditions: "{{ tv }}"
                                   sequence:
                                     - action: "notify.{{ notify_group_target }}"
@@ -2212,110 +1967,18 @@ actions:
                                         title: "{{title}}"
                                         message: "{{message}}"
                                         data:
-                                          tag: "{{ review_id }}"
-                                          group: "{{ group }}"
-                                          color: "{{color}}"
-                                          # Android Specific
-                                          subject: "{{subtitle}}"
-                                          clickAction: "{{tap_action}}"
-                                          ttl: 0
-                                          priority: high
-                                          alert_once: "{{ alert_once }}"
-                                          notification_icon: "{{icon}}"
-                                          sticky: "{{sticky}}"
-                                          channel: "{{'alarm_stream' if critical else channel}}"
-                                          car_ui: "{{android_auto}}"
-                                          # Android/Fire TV
+                                          <<: [*notify_common, *notify_tv]
+                                          # Only send still images to TV
                                           image:
-                                            url: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
-                                          video: "{{video}}"
-                                          fontsize: "{{tv_size}}"
-                                          position: "{{tv_position}}"
-                                          duration: "{{tv_duration}}"
-                                          transparency: "{{tv_transparency}}"
-                                          interrupt: "{{tv_interrupt}}"
+                                            url: "{{ tv_image }}"
                                           timeout: 30
-                                          # iOS Specific
-                                          subtitle: "{{subtitle}}"
-                                          url: "{{tap_action}}"
-                                          attachment:
-                                            url: "{{video if video else attachment }}"
-                                            content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                                          push:
-                                            sound:
-                                              name: "{{ iif(silent_update, 'none', sound) }}"
-                                              volume: "{{ iif((silent_update or sound == 'none'), 0, volume) }}"
-                                              critical: "{{ iif(critical, 1, 0) }}"
-                                          entity_id: "{{ios_live_view}}"
-                                          # Actions
-                                          actions:
-                                            - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                                              title: "{{button_1}}"
-                                              uri: "{{url_1}}"
-                                              icon: "{{icon_1}}"
-                                            - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                                              title: "{{button_2}}"
-                                              uri: "{{url_2}}"
-                                              icon: "{{icon_2}}"
-                                            - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                                              title: "{{button_3}}"
-                                              uri: "{{url_3}}"
-                                              icon: "{{icon_3}}"
-                                              destructive: true
                               default:
                                 - action: "notify.{{ notify_group_target }}"
                                   data:
                                     title: "{{title}}"
                                     message: "{{message}}"
                                     data:
-                                      tag: "{{ review_id }}"
-                                      group: "{{ group }}"
-                                      color: "{{color}}"
-                                      # Android Specific
-                                      subject: "{{subtitle}}"
-                                      image: "{{attachment}}"
-                                      video: "{{video}}"
-                                      clickAction: "{{tap_action}}"
-                                      ttl: 0
-                                      priority: high
-                                      alert_once: "{{ alert_once }}"
-                                      notification_icon: "{{icon}}"
-                                      sticky: "{{sticky}}"
-                                      channel: "{{'alarm_stream' if critical else channel}}"
-                                      car_ui: "{{android_auto}}"
-                                      # Android/Fire TV
-                                      fontsize: "{{tv_size}}"
-                                      position: "{{tv_position}}"
-                                      duration: "{{tv_duration}}"
-                                      transparency: "{{tv_transparency}}"
-                                      interrupt: "{{tv_interrupt}}"
-                                      # iOS Specific
-                                      subtitle: "{{subtitle}}"
-                                      url: "{{tap_action}}"
-                                      attachment:
-                                        url: "{{video if video else attachment }}"
-                                        content-type: "{{ 'application/vnd.apple.mpegurl' if 'm3u8' in video else 'mp4' if 'mp4' in video else 'jpeg' if 'jpg' in attachment else 'gif' }}"
-                                      push:
-                                        sound:
-                                          name: "{{ iif(silent_update, 'none', sound) }}"
-                                          volume: "{{ iif((silent_update or sound == 'none'), 0, volume) }}"
-                                          critical: "{{ iif(critical, 1, 0) }}"
-                                      entity_id: "{{ios_live_view}}"
-                                      # Actions
-                                      actions:
-                                        - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
-                                          title: "{{button_1}}"
-                                          uri: "{{url_1}}"
-                                          icon: "{{icon_1}}"
-                                        - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
-                                          title: "{{button_2}}"
-                                          uri: "{{url_2}}"
-                                          icon: "{{icon_2}}"
-                                        - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
-                                          title: "{{button_3}}"
-                                          uri: "{{url_3}}"
-                                          icon: "{{icon_3}}"
-                                          destructive: true
+                                      <<: [*notify_phone, *notify_tv]
 
                             - if: "{{tts and (not tts_helper or not alert_once or (tts_helper and review_id not in states(tts_helper)))}}"
                               then:
