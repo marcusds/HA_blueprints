@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.1)
+  name: Frigate Notifications (0.18.2)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -217,13 +217,13 @@ blueprint:
                 - label: Thumbnail
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg"
                 - label: Snapshot
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
                 - label: Snapshot with bounding box
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1"
                 - label: Snapshot cropped
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0&crop=1"
                 - label: Snapshot cropped with bounding box
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1&crop=1"
                 - label: Review GIF
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif"
                   # this will show the GIF associated with the first object detected by frigate
@@ -232,13 +232,13 @@ blueprint:
                 - label: Thumbnail (2:1)
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg?format=android"
                 - label: Snapshot (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0&format=android"
                 - label: Snapshot with bounding box (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1&format=android"
                 - label: Snapshot cropped (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1&format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0&crop=1&format=android"
                 - label: Snapshot cropped with bounding box (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1&format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1&crop=1&format=android"
               mode: dropdown
         attachment_2:
           name: Subsequent Attachment (Optional)
@@ -257,13 +257,13 @@ blueprint:
                 - label: Thumbnail
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg"
                 - label: Snapshot
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
                 - label: Snapshot with bounding box
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1"
                 - label: Snapshot cropped
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0&crop=1"
                 - label: Snapshot cropped with bounding box
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1&crop=1"
                 - label: Review GIF
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif"
                   # this will show the GIF associated with the first object detected by frigate
@@ -272,13 +272,13 @@ blueprint:
                 - label: Thumbnail (2:1)
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg?format=android"
                 - label: Snapshot (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0&format=android"
                 - label: Snapshot with bounding box (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1&format=android"
                 - label: Snapshot cropped (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1&format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0&crop=1&format=android"
                 - label: Snapshot cropped with bounding box (2:1)
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1&format=android"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?timestamp=0&bbox=1&crop=1&format=android"
               mode: dropdown
         video:
           name: Video (Optional)
@@ -290,8 +290,8 @@ blueprint:
                 - label: None
                   value: ""
                 - label: Review GIF
-                  # compared to attachments above, we add format=ts to allow HA to interpret the GIFs as videos, otherwise it fails.
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif?format=ts"
+                  # format=mp4 makes Frigate return the review preview as an MP4 instead of a GIF.
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif?format=mp4"
                 - label: Object 1 Event GIF
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/event_preview.gif?format=ts"
                 - label: Clip mp4
@@ -699,7 +699,7 @@ blueprint:
                 - label: View GIF
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif"
                 - label: View Snapshot
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
                 - label: View Stream
                   value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'] | lower | replace('-','_')}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
                 - label: Open Home Assistant (web)
@@ -737,7 +737,7 @@ blueprint:
                 - label: View GIF
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif"
                 - label: View Snapshot
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
                 - label: View Stream
                   value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'] | lower | replace('-','_')}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
                 - label: Open Home Assistant (web)
@@ -764,7 +764,7 @@ blueprint:
         url_2:
           name: Action Button 2 URL
           description: Customise what happens when you press the second Action Button. Select from one of the preconfigured options or enter your own custom URL.
-          default: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+          default: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
           selector:
             select:
               options:
@@ -773,7 +773,7 @@ blueprint:
                 - label: View Clip (IOS)
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8"
                 - label: View Snapshot
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
                 - label: View Stream
                   value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'] | lower | replace('-','_')}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
                 - label: Open Home Assistant (web)
@@ -813,7 +813,7 @@ blueprint:
                 - label: View Clip (IOS)
                   value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8"
                 - label: View Snapshot
-                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+                  value: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
                 - label: View Stream
                   value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'] | lower | replace('-','_')}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
                 - label: Open Home Assistant (web)
@@ -1278,7 +1278,9 @@ actions:
               tag: "{{ review_id }}"
               channel: !input channel
               sticky: false
-              sound: "none"
+              # Only a "Security Concern" summary alerts; others update silently.
+              genai_alert: "{{ genai_threat_level == 2 }}"
+              sound: "{{ sound if genai_alert else 'none' }}"
               critical: false
               tap_action: !input tap_action
               button_1: !input button_1
@@ -1319,7 +1321,7 @@ actions:
                         message: "{{message}}"
                         data:
                           tag: "{{ tag }}"
-                          alert_once: true
+                          alert_once: "{{ not genai_alert }}"
                           group: "{{ group }}"
                           color: "{{color}}"
                           notification_icon: "{{icon}}"
@@ -1368,7 +1370,7 @@ actions:
                           message: "{{message}}"
                           data:
                             tag: "{{ tag }}"
-                            alert_once: true
+                            alert_once: "{{ not genai_alert }}"
                             group: "{{ group }}"
                             color: "{{color}}"
                             notification_icon: "{{icon}}"
@@ -1424,7 +1426,7 @@ actions:
                       message: "{{message}}"
                       data:
                         tag: "{{ tag }}"
-                        alert_once: true
+                        alert_once: "{{ not genai_alert }}"
                         group: "{{ group }}"
                         color: "{{color}}"
                         notification_icon: "{{icon}}"
@@ -1486,24 +1488,20 @@ actions:
               sub_labels: "{{ event['after']['data']['sub_labels'] }}"
               label: >-
                 {% if update_sub_label %}
-                  {% set data = namespace(labels=[]) %} 
-                  {% if labels|length %}
-                    {% for obj in objects|select('in', labels) %}
-                      {% if "-verified" in obj %}
-                      {% else %}
-                        {% set data.labels = data.labels + [obj] %}
-                      {% endif %}
-                    {% endfor %} {% set data.labels = data.labels + sub_labels %} 
-                    {{ data.labels | unique | list | sort | join(", ") | title }}
+                  {% set verified = event['after']['data'].get('verified_objects') %}
+                  {% set data = namespace(labels=[]) %}
+                  {% for obj in objects if '-verified' not in obj and (not labels|length or obj in labels) %}
+                    {% set data.labels = data.labels + [obj] %}
+                  {% endfor %}
+                  {% if verified is none or verified|length != sub_labels|length %}
+                    {% set data.labels = data.labels + sub_labels %}
                   {% else %}
-                    {% for obj in objects %}
-                      {% if "-verified" in obj %}
-                      {% else %}
-                        {% set data.labels = data.labels + [obj] %}
-                      {% endif %}
-                    {% endfor %} {% set data.labels = data.labels + sub_labels %} 
-                    {{ data.labels | unique | list | sort | join(", ") | title }}
+                    {# verified_objects[i] is the object type sub_labels[i] was recognised on #}
+                    {% for v in verified if not labels|length or v|regex_replace('-verified$', '') in labels %}
+                      {% set data.labels = data.labels + [sub_labels[loop.index0]] %}
+                    {% endfor %}
                   {% endif %}
+                  {{ data.labels | unique | list | sort | join(", ") | title }}
                 {% else %}
                   {{ objects | list | join(", ") | title }}
                 {% endif %}
@@ -1966,26 +1964,22 @@ actions:
                     # Otherwise we loop through all objects and replace any verified objects with the sub label
                     label: >-
                       {% if update_sub_label %}
-                        {% set data = namespace(labels=[]) %} 
-                        {% if labels|length %}
-                          {% for obj in objects|select('in', labels) %}
-                            {% if "-verified" in obj %}
-                            {% else %}
-                              {% set data.labels = data.labels + [obj] %}
-                            {% endif %}
-                          {% endfor %} {% set data.labels = data.labels + sub_labels %} 
-                          {{ data.labels | unique | list | sort | join(", ") | title }}
+                        {% set verified = event['after']['data'].get('verified_objects') %}
+                        {% set data = namespace(labels=[]) %}
+                        {% for obj in objects if '-verified' not in obj and (not labels|length or obj in labels) %}
+                          {% set data.labels = data.labels + [obj] %}
+                        {% endfor %}
+                        {% if verified is none or verified|length != sub_labels|length %}
+                          {% set data.labels = data.labels + sub_labels %}
                         {% else %}
-                          {% for obj in objects %}
-                            {% if "-verified" in obj %}
-                            {% else %}
-                              {% set data.labels = data.labels + [obj] %}
-                            {% endif %}
-                          {% endfor %} {% set data.labels = data.labels + sub_labels %} 
-                          {{ data.labels | unique | list | sort | join(", ") | title }}
+                          {# verified_objects[i] is the object type sub_labels[i] was recognised on #}
+                          {% for v in verified if not labels|length or v|regex_replace('-verified$', '') in labels %}
+                            {% set data.labels = data.labels + [sub_labels[loop.index0]] %}
+                          {% endfor %}
                         {% endif %}
+                        {{ data.labels | unique | list | sort | join(", ") | title }}
                       {% else %}
-                        {{objects | list | join(', ') | title}}
+                        {{ objects | list | join(", ") | title }}
                       {% endif %}
                     # import the title and message again so any sublabel, object or zone changes are captured.
                     title: !input title
@@ -2251,7 +2245,7 @@ actions:
                                           car_ui: "{{android_auto}}"
                                           # Android/Fire TV
                                           image:
-                                            url: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg"
+                                            url: "{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=0&timestamp=0"
                                           video: "{{video}}"
                                           fontsize: "{{tv_size}}"
                                           position: "{{tv_position}}"
