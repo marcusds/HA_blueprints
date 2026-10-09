@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.0)
+  name: Frigate Notifications (0.18.1)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -184,16 +184,25 @@ blueprint:
           default: false
           selector:
             boolean:
-        dismissed_helper:
-          name: Skip GenAI Summary For Dismissed Alerts (Optional)
+        state_helper:
+          name: Notification State Helper (Optional)
           description: |
-            When set, a GenAI summary is not sent if you already swiped away that event's notification. Create a text helper (/config/helpers) with the maximum length set to 255, which stores the ids of recently dismissed notifications, and select it here. Leave empty to always send the summary.
-            Android only: iOS does not report dismissed notifications.
+            A text helper (/config/helpers, maximum length 255) the automation uses to remember when it last sent an alert and which events it alerted on. With it set:
+            - the cooldown only counts alerts that were actually sent (otherwise dismissing a notification, a GenAI summary or pressing Silence restarts the cooldown)
+            - a GenAI summary is only sent for events that sent an alert, so an event suppressed by the cooldown or a filter doesn't arrive later as a new notification
+            - "Respect Dismissed Notifications" below can work
           default: ""
           selector:
             entity:
               filter:
                 domain: input_text
+        respect_dismissed:
+          name: Respect Dismissed Notifications (Optional)
+          description: |
+            Once you swipe away an event's notification, don't send it again for updates or the GenAI summary. Requires the Notification State Helper. Android only: iOS does not report dismissed notifications.
+          default: false
+          selector:
+            boolean:
         attachment:
           name: Initial Attachment
           description: |
@@ -938,11 +947,17 @@ mode: parallel
 trigger_variables:
   # severity: !input review_severity
   mqtt_topic: !input mqtt_topic
+  silence_timer_trigger_entity: !input silence_timer_entity
 triggers:
   - trigger: mqtt
     topic: "{{mqtt_topic}}"
     payload: "new"
-    value_template: "{{value_json['type']}}"
+    # Reviews started by audio (e.g. speech) never publish "new"; treat the
+    # first update that adds objects as the start of the review.
+    value_template: >-
+      {{ 'new' if value_json['type'] == 'new' or
+         (value_json['type'] == 'update' and not value_json['before']['data']['objects']
+          and value_json['after']['data']['objects']) else value_json['type'] }}
     id: frigate-event
   - trigger: mqtt
     topic: "{{mqtt_topic}}"
@@ -961,6 +976,13 @@ triggers:
     id: custom
   - trigger: event
     event_type: timer.finished
+    event_data:
+      entity_id: "{{ silence_timer_trigger_entity }}"
+    id: silence-finished
+  - trigger: event
+    event_type: timer.cancelled
+    event_data:
+      entity_id: "{{ silence_timer_trigger_entity }}"
     id: silence-finished
   - trigger: event
     event_type: mobile_app_notification_cleared
@@ -999,7 +1021,11 @@ variables:
   disable_times: !input disable_times
   cooldown: !input cooldown
   silence_minutes: !input silence_timer
-  dismissed_helper: !input dismissed_helper
+  state_helper: !input state_helper
+  respect_dismissed: !input respect_dismissed
+  # state_helper holds "<last alert epoch>|+<review id sent>|-<review id dismissed>|..."
+  helper_entries: "{{ (states(state_helper) if state_helper != '' else '').split('|') }}"
+  last_alert_ts: "{{ helper_entries[0] | int(0) }}"
   silence_entity: !input silence_timer_entity
   silenced: "{{ silence_entity != '' and is_state(silence_entity, 'active') }}"
   timeout: !input timeout
@@ -1053,7 +1079,7 @@ conditions:
         - alias: Frigate review notification
           condition: template
           value_template: >
-            {{ dismissed_helper != '' and
+            {{ state_helper != '' and respect_dismissed and
                trigger.event.data.get('tag', '') | regex_match('^\\d+\\.\\d+-[a-z0-9]+$') }}
     - condition: and
       conditions:
@@ -1072,9 +1098,11 @@ conditions:
         - alias: Cooldown
           condition: template
           value_template: >
-            {{ trigger.id == 'genai-event' or
-               not this.attributes.last_triggered or
-               (now() - this.attributes.last_triggered).seconds > cooldown }}
+            {% if trigger.id == 'genai-event' %}true
+            {% elif state_helper != '' %}{{ now().timestamp() - last_alert_ts > cooldown }}
+            {% else %}{{ not this.attributes.last_triggered or
+               (now() - this.attributes.last_triggered).total_seconds() > cooldown }}
+            {% endif %}
         - alias: Disable Times
           condition: template
           value_template: "{{ not disable_times|length or not now().hour in disable_times|map('int')|list }}"
@@ -1121,7 +1149,8 @@ actions:
                                   message: "{{ silence_message }}"
                                   data:
                                     tag: "{{ silence_tag }}"
-                                    channel: !input channel
+                                    channel: Camera notifications paused
+                                    alert_once: true
                                     sticky: true
                                     importance: low
                                     notification_icon: mdi:bell-off
@@ -1132,7 +1161,8 @@ actions:
                                     message: "{{ silence_message }}"
                                     data:
                                       tag: "{{ silence_tag }}"
-                                      channel: !input channel
+                                      channel: Camera notifications paused
+                                      alert_once: true
                                       sticky: true
                                       importance: low
                                       notification_icon: mdi:bell-off
@@ -1183,15 +1213,18 @@ actions:
         sequence:
           - action: input_text.set_value
             target:
-              entity_id: "{{ dismissed_helper }}"
+              entity_id: "{{ state_helper }}"
             data:
-              value: >
-                {% set tag = trigger.event.data.tag %}
-                {% set old = states(dismissed_helper) %}
-                {% set old = '' if old in ['unknown', 'unavailable'] else old %}
-                {% if tag in old %}{{ old }}{% else %}
-                {{ (tag ~ '|' ~ old)[:state_attr(dismissed_helper, 'max') | int(100)] }}
-                {% endif %}
+              value: >-
+                {% set entry = '-' ~ trigger.event.data.tag %}
+                {% set parts = states(state_helper).split('|') %}
+                {% set ns = namespace(out=(parts[0] | int(0)) ~ '|' ~ entry) %}
+                {% for e in parts[1:] if e and e != entry %}
+                  {% if (ns.out ~ '|' ~ e) | length <= state_attr(state_helper, 'max') | int(100) %}
+                    {% set ns.out = ns.out ~ '|' ~ e %}
+                  {% endif %}
+                {% endfor %}
+                {{ ns.out }}
       - alias: "Custom Action Manual"
         conditions:
           - condition: trigger
@@ -1206,18 +1239,28 @@ actions:
           - alias: "Zone Filter"
             condition: template
             value_template: "{{ not zone_only or after_zones | select('in', zones) | list | length > 0 }}"
+          - alias: "Alert Was Sent"
+            condition: template
+            value_template: >
+              {{ state_helper == '' or ('+' ~ trigger.payload_json['after']['id']) in helper_entries }}
           - alias: "Not Dismissed"
             condition: template
             value_template: >
-              {{ dismissed_helper == '' or
-                 trigger.payload_json['after']['id'] not in states(dismissed_helper) }}
+              {{ not (state_helper != '' and respect_dismissed) or
+                 ('-' ~ trigger.payload_json['after']['id']) not in helper_entries }}
+          - alias: "Has Summary"
+            condition: template
+            value_template: "{{ (trigger.payload_json['after']['data']['metadata'] or {}).get('shortSummary') }}"
         sequence:
           - variables:
               event: "{{ trigger.payload_json }}"
               detections: "{{ event['after']['data']['detections'] }}"
               review_id: "{{ event['after']['id'] }}"
-              id: "{{ detections[0] }}"
-              metadata: "{{ event['after']['data']['metadata'] | default({}) }}"
+              # detections isn't ordered; ids start with the object's start time,
+              # so the lowest is the object the initial alert was about.
+              id: "{{ detections | sort | first | default('') }}"
+              icon: !input icon
+              metadata: "{{ event['after']['data']['metadata'] or {} }}"
               genai_title: "{{ metadata.title | default('') }}"
               genai_shortSummary: "{{ metadata.shortSummary | default('') }}"
               genai_threat_level: "{{ metadata.potential_threat_level | int(0) }}"
@@ -1278,6 +1321,8 @@ actions:
                           tag: "{{ tag }}"
                           alert_once: true
                           group: "{{ group }}"
+                          color: "{{color}}"
+                          notification_icon: "{{icon}}"
                           # Android Specific
                           subject: "{{subtitle}}"
                           image: "{{attachment}}"
@@ -1325,6 +1370,8 @@ actions:
                             tag: "{{ tag }}"
                             alert_once: true
                             group: "{{ group }}"
+                            color: "{{color}}"
+                            notification_icon: "{{icon}}"
                             # Android Specific
                             subject: "{{subtitle}}"
                             clickAction: "{{tap_action}}"
@@ -1379,6 +1426,8 @@ actions:
                         tag: "{{ tag }}"
                         alert_once: true
                         group: "{{ group }}"
+                        color: "{{color}}"
+                        notification_icon: "{{icon}}"
                         # Android Specific
                         subject: "{{subtitle}}"
                         image: "{{attachment}}"
@@ -1431,7 +1480,8 @@ actions:
               event: "{{ trigger.payload_json }}"
               detections: "{{ event['after']['data']['detections'] }}"
               review_id: "{{event['after']['id']}}"
-              id: "{{ detections[0] }}"
+              # detections isn't ordered; ids start with the object's start time.
+              id: "{{ detections | sort | first | default('') }}"
               objects: "{{ event['after']['data']['objects'] }}"
               sub_labels: "{{ event['after']['data']['sub_labels'] }}"
               label: >-
@@ -1819,6 +1869,23 @@ actions:
                                   {{ newIds[:250] }}
                               target:
                                 entity_id: "{{tts_helper}}"
+                  - alias: "Remember Sent Alert"
+                    if: "{{ state_helper != '' }}"
+                    then:
+                      - action: input_text.set_value
+                        target:
+                          entity_id: "{{ state_helper }}"
+                        data:
+                          value: >-
+                            {% set entry = '+' ~ review_id %}
+                            {% set parts = states(state_helper).split('|') %}
+                            {% set ns = namespace(out=(now().timestamp() | int) ~ '|' ~ entry) %}
+                            {% for e in parts[1:] if e and e != entry %}
+                              {% if (ns.out ~ '|' ~ e) | length <= state_attr(state_helper, 'max') | int(100) %}
+                                {% set ns.out = ns.out ~ '|' ~ e %}
+                              {% endif %}
+                            {% endfor %}
+                            {{ ns.out }}
           ########################################################
           #################### LOOP for updates ##################
           ########################################################
@@ -1932,7 +1999,12 @@ actions:
                     sub_label_updated: "{{ update_sub_label and sub_labels != before_sub_labels }}"
                     # If we are filtering based on zones, and zone conditions are met and there is a new zone added.
                     zone_updated: "{{ (entered_new_filter_zones and zones_satisfied) or entered_new_zones }}"
-                    object_updated: "{{ old_objects | select('in', labels) | list | length  != objects | select('in', labels) | list | length }}"
+                    object_updated: >-
+                      {% if labels | length %}
+                        {{ old_objects | select('in', labels) | list | length != objects | select('in', labels) | list | length }}
+                      {% else %}
+                        {{ objects | reject('in', old_objects) | list | length > 0 }}
+                      {% endif %}
 
                     # update is used to determine if we should play a sound. if it returns true, we should be silent.
                     silent_update: "{{ alert_once or (not presence_changed and not zone_updated and not object_updated and not sub_label_updated) }}"
@@ -2018,6 +2090,14 @@ actions:
                             - alias: Presence Filter
                               condition: template
                               value_template: "{{not home}}"
+                            - alias: Not Silenced
+                              condition: template
+                              value_template: "{{ silence_entity == '' or not is_state(silence_entity, 'active') }}"
+                            - alias: Not Dismissed
+                              condition: template
+                              value_template: >
+                                {{ not (state_helper != '' and respect_dismissed) or
+                                   ('-' ~ review_id) not in states(state_helper).split('|') }}
                             - or:
                                 - alias: Presence Changed
                                   condition: template
