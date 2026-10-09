@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.5)
+  name: Frigate Notifications (0.18.6)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -1234,7 +1234,7 @@ actions:
                  ('-' ~ trigger.payload_json['after']['id']) not in helper_entries }}
           - alias: "Has Summary"
             condition: template
-            value_template: "{{ (trigger.payload_json['after']['data']['metadata'] or {}).get('shortSummary') }}"
+            value_template: "{{ ((trigger.payload_json['after']['data']['metadata'] or {}).get('shortSummary') or '') | length > 0 }}"
         sequence:
           - variables:
               event: "{{ trigger.payload_json }}"
