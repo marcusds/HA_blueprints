@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.3)
+  name: Frigate Notifications (0.18.4)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -160,7 +160,7 @@ blueprint:
                 - "true"
                 - "{{'false' if now().hour in [8,9,10,11,12,13,14,15,16,17,18] else 'true'}}"
                 - "{{'true' if is_state('sun.sun', 'above_horizon') else 'false' }}"
-                - "{{ event['after']['top_score'] |float(0) > 0.8 }}"
+                - "{{ event['after']['severity'] == 'alert' }}"
               custom_value: true
         tts:
           name: Use TTS to override silent/dnd modes on specific phones.
@@ -642,17 +642,6 @@ blueprint:
             entity:
               filter:
                 domain: timer
-        loiter_timer:
-          name: Loitering Notifications (Optional)
-          description: >
-            Sends new loitering notification if a stationary object is detected for longer
-            than the specified time. 0 is off and will not send notifications.
-          default: 0
-          selector:
-            number:
-              max: 3600
-              min: 0
-              unit_of_measurement: seconds
         initial_delay:
           name: Delay initial notification (Optional)
           description: |
@@ -1029,11 +1018,8 @@ variables:
   silence_entity: !input silence_timer_entity
   silenced: "{{ silence_entity != '' and is_state(silence_entity, 'active') }}"
   timeout: !input timeout
-  loitering: false
-  loiter_timer: !input loiter_timer
   initial_delay: !input initial_delay
   final_delay: !input final_delay
-  fps: "{{ states('sensor.' + camera + '_camera_fps')|int(5) }}"
   state_only: !input state_filter
   input_entity: !input state_entity
   input_states: !input state_filter_states
@@ -1059,9 +1045,7 @@ variables:
   objects_satisfied: "{{ not labels|length or labels|select('in', objects)|list|length > 0 or objects|map('regex_replace', '-verified$', '')|select('in', labels)|list|length > 0 }}"
   initial_home: "{{ presence_entity != '' and presence_entity|expand|selectattr('state','eq','home')|list|length != 0 }}"
   state_satisfied: "{{ not state_only or states(input_entity)|lower in states_filter }}"
-  before_zones: "{{ trigger.payload_json['before']['data']['zones'] if trigger.id in ['frigate-event', 'genai-event'] }}"
   after_zones: "{{ trigger.payload_json['after']['data']['zones'] if trigger.id in ['frigate-event', 'genai-event'] }}"
-  zone_multi_filter: "{{zone_only and zone_multi and after_zones|length and zones and zones |reject('in', after_zones) |list |length == 0 }}"
   filters_satisfied: "{{ severity_satisfied and objects_satisfied and not initial_home and state_satisfied and custom_filter }}"
 conditions:
   condition: or
@@ -1351,15 +1335,15 @@ actions:
                           entity_id: "{{ios_live_view}}"
                           # Actions
                           actions:
-                            - action: URI
+                            - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                               title: "{{button_1}}"
                               uri: "{{url_1}}"
                               icon: "{{icon_1}}"
-                            - action: URI
+                            - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                               title: "{{button_2}}"
                               uri: "{{url_2}}"
                               icon: "{{icon_2}}"
-                            - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                            - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                               title: "{{button_3}}"
                               uri: "{{url_3}}"
                               icon: "{{icon_3}}"
@@ -1408,15 +1392,15 @@ actions:
                             entity_id: "{{ios_live_view}}"
                             # Actions
                             actions:
-                              - action: URI
+                              - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                                 title: "{{button_1}}"
                                 uri: "{{url_1}}"
                                 icon: "{{icon_1}}"
-                              - action: URI
+                              - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                                 title: "{{button_2}}"
                                 uri: "{{url_2}}"
                                 icon: "{{icon_2}}"
-                              - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                              - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                                 title: "{{button_3}}"
                                 uri: "{{url_3}}"
                                 icon: "{{icon_3}}"
@@ -1462,15 +1446,15 @@ actions:
                         entity_id: "{{ios_live_view}}"
                         # Actions
                         actions:
-                          - action: URI
+                          - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                             title: "{{button_1}}"
                             uri: "{{url_1}}"
                             icon: "{{icon_1}}"
-                          - action: URI
+                          - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                             title: "{{button_2}}"
                             uri: "{{url_2}}"
                             icon: "{{icon_2}}"
-                          - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                          - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                             title: "{{button_3}}"
                             uri: "{{url_3}}"
                             icon: "{{icon_3}}"
@@ -1509,9 +1493,6 @@ actions:
                   {{ objects | list | join(", ") | title }}
                 {% endif %}
 
-              # Dynamic Variables per event
-              # after_zones: "{{ event['after']['data']['zones'] }}"
-              # zone_multi_filter: "{{zone_only and zone_multi and after_zones|length and zones and zones |reject('in', after_zones) |list |length == 0 }}"
 
               # Zones Variables
               # If no zones defined, or any zones have been entered
@@ -1567,12 +1548,11 @@ actions:
                   - "{{debug}}"
                 sequence:
                   - action: logbook.log
-                    data_template:
+                    data:
                       name: Frigate Notification
                       message: |
                         DEBUG: 
                           Info:
-                            FPS: {{fps}}, 
                             Frigate Review id: {{review_id}}{{', Frigate client ID: ' + client_id if client_id else ''}}, 
                             Frigate Detections: {{detections}}
                             Objects: {{label}},
@@ -1596,7 +1576,7 @@ actions:
                             Volume: {{ iif(sound == 'none', 0, volume) }}
                             IOS Live entity: "{{ios_live_view}}"
                             Android Auto: {{android_auto}}, 
-                            Tag: {{ id }}, 
+                            Tag: {{ review_id }}, 
                             Group: {{group}}, 
                             Channel: {{channel}} {{' - overridden by alarm_stream' if critical}}, 
                             Sticky: {{sticky}}, 
@@ -1717,15 +1697,15 @@ actions:
                                   entity_id: "{{ios_live_view}}"
                                   # Actions
                                   actions:
-                                    - action: URI
+                                    - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                                       title: "{{button_1}}"
                                       uri: "{{url_1}}"
                                       icon: "{{icon_1}}"
-                                    - action: URI
+                                    - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                                       title: "{{button_2}}"
                                       uri: "{{url_2}}"
                                       icon: "{{icon_2}}"
-                                    - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                                    - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                                       title: "{{button_3}}"
                                       uri: "{{url_3}}"
                                       icon: "{{icon_3}}"
@@ -1773,15 +1753,15 @@ actions:
                                     entity_id: "{{ios_live_view}}"
                                     # Actions
                                     actions:
-                                      - action: URI
+                                      - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                                         title: "{{button_1}}"
                                         uri: "{{url_1}}"
                                         icon: "{{icon_1}}"
-                                      - action: URI
+                                      - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                                         title: "{{button_2}}"
                                         uri: "{{url_2}}"
                                         icon: "{{icon_2}}"
-                                      - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                                      - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                                         title: "{{button_3}}"
                                         uri: "{{url_3}}"
                                         icon: "{{icon_3}}"
@@ -1826,20 +1806,20 @@ actions:
                                 entity_id: "{{ios_live_view}}"
                                 # Actions
                                 actions:
-                                  - action: URI
+                                  - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                                     title: "{{button_1}}"
                                     uri: "{{url_1}}"
                                     icon: "{{icon_1}}"
-                                  - action: URI
+                                  - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                                     title: "{{button_2}}"
                                     uri: "{{url_2}}"
                                     icon: "{{icon_2}}"
-                                  - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                                  - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                                     title: "{{button_3}}"
                                     uri: "{{url_3}}"
                                     icon: "{{icon_3}}"
                                     destructive: true
-                      - if: "{{tts and (not tts_helper or not alert_once or (tts_helper and id not in states(tts_helper)))}}"
+                      - if: "{{tts and (not tts_helper or not alert_once or (tts_helper and review_id not in states(tts_helper)))}}"
                         then:
                           sequence:
                             - choose:
@@ -1863,13 +1843,15 @@ actions:
                                       channel: "{{'alarm_stream' if critical else channel}}"
                                       alert_once: "{{ alert_once }}"
                                       tts_text: "{{message}}"
-                            - action: input_text.set_value
-                              data:
-                                value: |
-                                  {% set newIds = id + '|' + states(tts_helper) %}
-                                  {{ newIds[:250] }}
-                              target:
-                                entity_id: "{{tts_helper}}"
+                            - if: "{{ tts_helper != '' }}"
+                              then:
+                                - action: input_text.set_value
+                                  data:
+                                    value: |
+                                      {% set newIds = review_id ~ '|' ~ states(tts_helper) %}
+                                      {{ newIds[:state_attr(tts_helper, 'max') | int(100)] }}
+                                  target:
+                                    entity_id: "{{tts_helper}}"
                   - alias: "Remember Sent Alert"
                     if: "{{ state_helper != '' }}"
                     then:
@@ -1920,9 +1902,7 @@ actions:
 
                     objects: "{{ event['after']['data']['objects'] }}"
                     objects_satisfied: "{{ not labels|length or labels|select('in', objects)|list|length > 0 or objects|map('regex_replace', '-verified$', '')|select('in', labels)|list|length > 0 }}"
-                    #loitering: "{{ loiter_timer and event['before']['motionless_count']/fps/60 < loiter_timer and event['after']['motionless_count']/fps/60 >= loiter_timer }}"
                     home: "{{presence_entity |reject('in', '') |select('is_state', 'home') |list |length != 0 }}"
-                    #new_snapshot: "{{ update_thumbnail and event['before']['snapshot']['frame_time'] != event['after']['snapshot']['frame_time'] }}"
                     presence_changed: "{{ presence_entity |reject('in', '') |expand |map(attribute='last_changed') |list |select('gt', as_datetime(event['before']['start_time'])) |list |length != 0 }}"
 
                     # Zones Variables
@@ -1955,8 +1935,6 @@ actions:
                     last_entered_zones: "{{ zones | select('in', last_zones) | list }}"
                     entered_new_zones: "{{ not zone_only and after_zones | length > last_zones | length }}"
                     entered_new_filter_zones: "{{ zone_only and zones | length > 0 and (new_entered_zones | length > last_entered_zones | length) }}"
-
-                    # stationary_moved: "{{ event['after']['position_changes'] > event['before']['position_changes'] }}"
 
                     state_satisfied: "{{ not state_only or states(input_entity)|lower in states_filter }}"
 
@@ -2014,7 +1992,7 @@ actions:
                         - "{{debug}}"
                       sequence:
                         - action: logbook.log
-                          data_template:
+                          data:
                             name: Frigate Notification
                             message: |
                               DEBUG (in loop):
@@ -2060,7 +2038,7 @@ actions:
                                       TEST:  {{'PASS' if not home else 'FAIL'}},
                                     Time Filter:
                                       Disabled times: {{disable_times}},
-                                      TEST: {{'PASS' if now().hour not in disable_times else 'FAIL'}}
+                                      TEST: {{'PASS' if now().hour not in disable_times|map('int')|list else 'FAIL'}}
                                     State Filter:
                                       State Filter toggle on: {{state_only}},
                                       State Filter Entity: {{input_entity}},
@@ -2214,15 +2192,15 @@ actions:
                                         entity_id: "{{ios_live_view}}"
                                         # Actions
                                         actions:
-                                          - action: URI
+                                          - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                                             title: "{{button_1}}"
                                             uri: "{{url_1}}"
                                             icon: "{{icon_1}}"
-                                          - action: URI
+                                          - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                                             title: "{{button_2}}"
                                             uri: "{{url_2}}"
                                             icon: "{{icon_2}}"
-                                          - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                                          - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                                             title: "{{button_3}}"
                                             uri: "{{url_3}}"
                                             icon: "{{icon_3}}"
@@ -2271,15 +2249,15 @@ actions:
                                           entity_id: "{{ios_live_view}}"
                                           # Actions
                                           actions:
-                                            - action: URI
+                                            - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                                               title: "{{button_1}}"
                                               uri: "{{url_1}}"
                                               icon: "{{icon_1}}"
-                                            - action: URI
+                                            - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                                               title: "{{button_2}}"
                                               uri: "{{url_2}}"
                                               icon: "{{icon_2}}"
-                                            - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                                            - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                                               title: "{{button_3}}"
                                               uri: "{{url_3}}"
                                               icon: "{{icon_3}}"
@@ -2325,21 +2303,21 @@ actions:
                                       entity_id: "{{ios_live_view}}"
                                       # Actions
                                       actions:
-                                        - action: URI
+                                        - action: "{{ 'URI' if not url_1 or '/' in url_1 or ':' in url_1 else url_1 }}"
                                           title: "{{button_1}}"
                                           uri: "{{url_1}}"
                                           icon: "{{icon_1}}"
-                                        - action: URI
+                                        - action: "{{ 'URI' if not url_2 or '/' in url_2 or ':' in url_2 else url_2 }}"
                                           title: "{{button_2}}"
                                           uri: "{{url_2}}"
                                           icon: "{{icon_2}}"
-                                        - action: "{{ 'URI' if '/' in url_3 else url_3 }}"
+                                        - action: "{{ 'URI' if not url_3 or '/' in url_3 or ':' in url_3 else url_3 }}"
                                           title: "{{button_3}}"
                                           uri: "{{url_3}}"
                                           icon: "{{icon_3}}"
                                           destructive: true
 
-                            - if: "{{tts and (not tts_helper or not alert_once or (tts_helper and id not in states(tts_helper)))}}"
+                            - if: "{{tts and (not tts_helper or not alert_once or (tts_helper and review_id not in states(tts_helper)))}}"
                               then:
                                 sequence:
                                   - choose:
@@ -2350,7 +2328,7 @@ actions:
                                             type: notify
                                             message: "{{'TTS'}}"
                                             data:
-                                              tag: "{{ review_id }}{{'-loitering-tts' if loitering}}"
+                                              tag: "{{ review_id }}-tts"
                                               channel: "{{'alarm_stream' if critical else channel}}"
                                               alert_once: "{{ alert_once }}"
                                               tts_text: "{{message}}"
@@ -2360,15 +2338,17 @@ actions:
                                         data:
                                           message: "{{'TTS'}}"
                                           data:
-                                            tag: "{{ review_id }}{{'-loitering-tts' if loitering}}"
+                                            tag: "{{ review_id }}-tts"
                                             channel: "{{'alarm_stream' if critical else channel}}"
                                             alert_once: "{{ alert_once }}"
                                             tts_text: "{{message}}"
-                                  - action: input_text.set_value
-                                    data:
-                                      value: |
-                                        {% set newIds = id + '|' + states(tts_helper) %}
-                                        {{ newIds[:250] }}
-                                    target:
-                                      entity_id: "{{tts_helper}}"
+                                  - if: "{{ tts_helper != '' }}"
+                                    then:
+                                      - action: input_text.set_value
+                                        data:
+                                          value: |
+                                            {% set newIds = review_id ~ '|' ~ states(tts_helper) %}
+                                            {{ newIds[:state_attr(tts_helper, 'max') | int(100)] }}
+                                        target:
+                                          entity_id: "{{tts_helper}}"
               until: "{{ not wait.trigger or wait.trigger.payload_json['type'] == 'end' }}"
