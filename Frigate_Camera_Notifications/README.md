@@ -7,9 +7,6 @@ With this blueprint, you may send the notification to multiple devices by leavin
 ### STABLE 
 [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/SgtBatten/HA_blueprints/main/Frigate_Camera_Notifications/Stable.yaml)
 
-### BETA
-[![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/SgtBatten/HA_blueprints/main/Frigate_Camera_Notifications/Beta.yaml)
-
 ### Software Version Requirements
 
 - Minimum Home Assistant Version: 2024.11
