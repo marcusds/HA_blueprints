@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.6)
+  name: Frigate Notifications (0.18.7)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -708,6 +708,15 @@ blueprint:
                 - label: Notification History (Android)
                   value: settings://notification_history
               custom_value: true
+        clip_padding:
+          name: Clip Padding (Optional)
+          description: Seconds of video to add before (and after) the event in any clip.mp4 link (tap action, action buttons and video attachment). Useful when the detection fires after the subject is already in frame.
+          default: 0
+          selector:
+            number:
+              max: 30
+              min: 0
+              unit_of_measurement: seconds
         button_1:
           name: Action Button 1 Text
           description: 'The text used on the first Action button at the bottom of the notification. Set the URL below. (Default is "View Clip")'
@@ -1291,6 +1300,14 @@ actions:
               notify_sound: "{{ sound }}"
               notify_volume: "{{ iif(sound == 'none', 0, volume) }}"
               tv_image: "{{ attachment | replace('review_preview.gif','snapshot.jpg') | replace('event_preview.gif','snapshot.jpg') }}"
+          - alias: "Apply clip padding"
+            variables: &clip_padding_vars
+              clip_padding: !input clip_padding
+              tap_action: "{{ tap_action ~ ('&' if '?' in tap_action else '?') ~ 'padding=' ~ clip_padding if clip_padding | int(0) > 0 and 'clip.mp4' in tap_action and 'padding=' not in tap_action else tap_action }}"
+              url_1: "{{ url_1 ~ ('&' if '?' in url_1 else '?') ~ 'padding=' ~ clip_padding if clip_padding | int(0) > 0 and 'clip.mp4' in url_1 and 'padding=' not in url_1 else url_1 }}"
+              url_2: "{{ url_2 ~ ('&' if '?' in url_2 else '?') ~ 'padding=' ~ clip_padding if clip_padding | int(0) > 0 and 'clip.mp4' in url_2 and 'padding=' not in url_2 else url_2 }}"
+              url_3: "{{ url_3 ~ ('&' if '?' in url_3 else '?') ~ 'padding=' ~ clip_padding if clip_padding | int(0) > 0 and 'clip.mp4' in url_3 and 'padding=' not in url_3 else url_3 }}"
+              video: "{{ video ~ ('&' if '?' in video else '?') ~ 'padding=' ~ clip_padding if clip_padding | int(0) > 0 and 'clip.mp4' in video and 'padding=' not in video else video }}"
           - alias: "Send GenAI Notification"
             sequence:
               - choose:
@@ -1466,6 +1483,8 @@ actions:
               notify_sound: "{{ sound }}"
               notify_volume: "{{ iif(sound == 'none', 0, volume) }}"
               tv_image: "{{ attachment | replace('review_preview.gif','snapshot.jpg') | replace('event_preview.gif','snapshot.jpg') }}"
+          - alias: "Apply clip padding"
+            variables: *clip_padding_vars
           - alias: "Debug: Initial Output"
             choose:
               - conditions:
