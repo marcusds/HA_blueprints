@@ -1,5 +1,5 @@
 blueprint:
-  name: Frigate Notifications (0.18.7)
+  name: Frigate Notifications (0.18.8)
   author: marcusds
   homeassistant:
     min_version: 2024.11.0
@@ -592,6 +592,13 @@ blueprint:
                   value: "22"
                 - label: 23:00 - 23:59
                   value: "23"
+        skip_sub_labels:
+          name: Skip Sub Labels (Optional)
+          description: Don't notify when every sub label on the event is in this list (e.g. "reflection" from a classifier). With a Delay initial notification set, the first notification waits that long for a late sub label and is cancelled if one arrives.
+          default: []
+          selector:
+            text:
+              multiple: true
         custom_filter:
           name: Custom Filter (Optional - Advanced)
           description: A filter that must result in true or false but can be templated as necessary. You will need to ensure it is enclosed with appropriate \"quotes\" and \{\{brackets\}\}.
@@ -1055,7 +1062,13 @@ variables:
   initial_home: "{{ presence_entity != '' and presence_entity|expand|selectattr('state','eq','home')|list|length != 0 }}"
   state_satisfied: "{{ not state_only or states(input_entity)|lower in states_filter }}"
   after_zones: "{{ trigger.payload_json['after']['data']['zones'] if trigger.id in ['frigate-event', 'genai-event'] }}"
-  filters_satisfied: "{{ severity_satisfied and objects_satisfied and not initial_home and state_satisfied and custom_filter }}"
+  skip_sub_labels_input: !input skip_sub_labels
+  skip_sub_labels: "{{ skip_sub_labels_input | map('lower') | list }}"
+  # False when the event has sub labels and every one of them is in the skip list.
+  sub_labels_ok: >-
+    {% set sl = (trigger.payload_json['after']['data']['sub_labels'] | default([]) | map('lower') | list) if trigger.id in ['frigate-event', 'genai-event'] else [] %}
+    {{ not (skip_sub_labels | length > 0 and sl | length > 0 and sl | reject('in', skip_sub_labels) | list | length == 0) }}
+  filters_satisfied: "{{ severity_satisfied and objects_satisfied and not initial_home and state_satisfied and custom_filter and sub_labels_ok }}"
 conditions:
   condition: or
   conditions:
@@ -1583,13 +1596,30 @@ actions:
                   - alias: Custom Filter
                     condition: template
                     value_template: "{{ custom_filter }}"
+                  - alias: Sub Label Skip Filter
+                    condition: template
+                    value_template: "{{ sub_labels_ok }}"
                 sequence:
                   - alias: "Delay for image"
                     choose:
                       - conditions: "{{initial_delay > 0}}"
                         sequence:
-                          - delay:
+                          # Acts as the delay, but ends early and cancels the notification if
+                          # an update arrives whose sub labels are all in the skip list.
+                          - wait_for_trigger:
+                              - trigger: mqtt
+                                topic: "{{mqtt_topic}}"
+                                payload: "skip"
+                                value_template: >-
+                                  {% set sl = value_json['after']['data']['sub_labels'] | default([]) | map('lower') | list %}
+                                  {{ 'skip' if value_json['after']['id'] == review_id and skip_sub_labels | length > 0 and sl | length > 0 and sl | reject('in', skip_sub_labels) | list | length == 0 else 'go' }}
+                            timeout:
                               seconds: "{{initial_delay}}"
+                            continue_on_timeout: true
+                          - alias: "Stop if only skipped sub labels"
+                            if: "{{ wait.trigger is not none }}"
+                            then:
+                              - stop: "Only skipped sub labels"
                   - alias: "Custom Action Auto"
                     choose:
                       - conditions: "{{ custom_action_auto |length > 0 }}"
@@ -1752,6 +1782,7 @@ actions:
 
                     before_sub_labels: "{{ sub_labels }}"
                     sub_labels: "{{ event['after']['data']['sub_labels'] | default([]) }}"
+                    sub_labels_ok: "{{ not (skip_sub_labels | length > 0 and sub_labels | length > 0 and sub_labels | map('lower') | reject('in', skip_sub_labels) | list | length == 0) }}"
                     audio: "{{ event['after']['data'].get('audio') or [] }}"
                     # assess the sub labels from the mqtt message.
                     # If the user has configured specific objects we eliminate objects not in that list
@@ -1879,6 +1910,9 @@ actions:
                             - alias: Custom Filter
                               condition: template
                               value_template: "{{custom_filter}}"
+                            - alias: Sub Label Skip Filter
+                              condition: template
+                              value_template: "{{sub_labels_ok}}"
                             - alias: Presence Filter
                               condition: template
                               value_template: "{{not home}}"
